@@ -1,0 +1,9 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node_modules/.bin/tsc --noEmit)",
+      "Bash(/usr/local/bin/node node_modules/.bin/tsc --noEmit)",
+      "Bash(DATABASE_URL=\"postgresql://placeholder\" BLOB_READ_WRITE_TOKEN=\"placeholder\" /usr/local/bin/node node_modules/.bin/next build)"
+    ]
+  }
+}
