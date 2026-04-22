@@ -35,6 +35,7 @@ export interface Ticket {
   source_tool:       string | null
   assignment_reason: string | null
   needs_review:      boolean
+  affected_count:    number
   created_at:        string
   updated_at:        string
 }
@@ -42,7 +43,7 @@ export interface Ticket {
 // ── Parsed issue (output of parse-audit, input to upload route) ─
 
 export interface ParsedIssue {
-  url:               string | null
+  url:               string | null   // first affected URL (or null)
   title:             string
   description:       string | null
   issue_type:        string
@@ -51,6 +52,8 @@ export interface ParsedIssue {
   source_tool:       string | null
   assignment_reason: string | null
   needs_review:      boolean
+  affected_count:    number          // how many rows were grouped into this ticket
+  affected_urls:     string[]        // all URLs from the group
 }
 
 // ── New entity types (new schema tables) ─────────────────────

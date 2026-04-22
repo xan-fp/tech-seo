@@ -162,6 +162,11 @@ export default function BacklogPage() {
                 >
                   <td className="py-3 px-4 max-w-[240px]">
                     <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">{t.title}</p>
+                    {t.affected_count > 1 && (
+                      <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
+                        {t.affected_count} pages
+                      </span>
+                    )}
                     {t.url && (
                       t.url.startsWith('http') ? (
                         <a

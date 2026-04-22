@@ -62,6 +62,8 @@ function parseScreamingFrogCrawl(rows: Record<string, string>[]): ParsedIssue[] 
         source_tool:       'Screaming Frog',
         assignment_reason: reason,
         needs_review:      needsReview,
+        affected_count:    1,
+        affected_urls:     url ? [url] : [],
       })
     }
 
@@ -78,6 +80,8 @@ function parseScreamingFrogCrawl(rows: Record<string, string>[]): ParsedIssue[] 
         source_tool:       'Screaming Frog',
         assignment_reason: reason,
         needs_review:      needsReview,
+        affected_count:    1,
+        affected_urls:     url ? [url] : [],
       })
     }
 
@@ -94,6 +98,8 @@ function parseScreamingFrogCrawl(rows: Record<string, string>[]): ParsedIssue[] 
         source_tool:       'Screaming Frog',
         assignment_reason: reason,
         needs_review:      needsReview,
+        affected_count:    1,
+        affected_urls:     url ? [url] : [],
       })
     }
 
@@ -110,6 +116,8 @@ function parseScreamingFrogCrawl(rows: Record<string, string>[]): ParsedIssue[] 
         source_tool:       'Screaming Frog',
         assignment_reason: reason,
         needs_review:      needsReview,
+        affected_count:    1,
+        affected_urls:     url ? [url] : [],
       })
     }
 
@@ -126,6 +134,8 @@ function parseScreamingFrogCrawl(rows: Record<string, string>[]): ParsedIssue[] 
         source_tool:       'Screaming Frog',
         assignment_reason: reason,
         needs_review:      needsReview,
+        affected_count:    1,
+        affected_urls:     url ? [url] : [],
       })
     }
   }
@@ -173,11 +183,79 @@ function parseGenericIssueList(rows: Record<string, string>[]): ParsedIssue[] {
         issue_type:        issueType,
         severity,
         owner,
-        source_tool:       null,   // generic format — tool unknown
+        source_tool:       null,
         assignment_reason: reason,
         needs_review:      needsReview,
+        affected_count:    1,
+        affected_urls:     url ? [url] : [],
       }
     })
+}
+
+// ─── Severity ranking ─────────────────────────────────────────
+
+const SEV_RANK: Record<string, number> = {
+  critical: 4, high: 3, medium: 2, low: 1,
+}
+
+// ─── Deduplication ────────────────────────────────────────────
+//
+// Groups parsed issues by issue_type + owner.
+// Multiple rows with the same issue type become ONE ticket with:
+//   - a count of how many pages are affected
+//   - all affected URLs listed in the description
+//   - the highest severity found in the group
+
+export function dedupeIssues(issues: ParsedIssue[]): ParsedIssue[] {
+  // Group by issue_type (case-insensitive)
+  const groups = new Map<string, ParsedIssue[]>()
+
+  for (const issue of issues) {
+    const key = issue.issue_type.toLowerCase().trim()
+    if (!groups.has(key)) groups.set(key, [])
+    groups.get(key)!.push(issue)
+  }
+
+  const deduped: ParsedIssue[] = []
+
+  for (const group of Array.from(groups.values())) {
+    const count       = group.length
+    const first       = group[0]
+    const allUrls     = group.map(i => i.url).filter((u): u is string => u !== null && u.trim() !== '')
+    const uniqueUrls  = Array.from(new Set(allUrls))
+
+    // Pick the highest severity in the group
+    const topSeverity = group.reduce((best, i) =>
+      (SEV_RANK[i.severity] ?? 0) > (SEV_RANK[best.severity] ?? 0) ? i : best
+    , first).severity
+
+    // Build the title
+    const title = count === 1
+      ? first.title
+      : `${first.issue_type} — ${count} pages affected`
+
+    // Build description: original description + affected URLs list
+    const urlList = uniqueUrls.length === 0
+      ? ''
+      : uniqueUrls.length <= 20
+        ? `\n\nAffected URLs:\n${uniqueUrls.map(u => `• ${u}`).join('\n')}`
+        : `\n\nAffected URLs (first 20 of ${uniqueUrls.length}):\n${uniqueUrls.slice(0, 20).map(u => `• ${u}`).join('\n')}\n…and ${uniqueUrls.length - 20} more`
+
+    const description = (first.description ?? '') + urlList || null
+
+    deduped.push({
+      ...first,
+      title,
+      description,
+      severity:       topSeverity,
+      url:            uniqueUrls[0] ?? null,
+      affected_count: count,
+      affected_urls:  uniqueUrls,
+    })
+  }
+
+  // Sort by severity descending
+  return deduped.sort((a, b) => (SEV_RANK[b.severity] ?? 0) - (SEV_RANK[a.severity] ?? 0))
 }
 
 // ─── Public API ───────────────────────────────────────────────

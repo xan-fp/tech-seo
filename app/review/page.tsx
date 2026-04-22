@@ -604,6 +604,11 @@ function TicketTableRow({
         <p className="text-sm font-medium text-gray-900 leading-snug line-clamp-2">
           {ticket.title}
         </p>
+        {ticket.affected_count > 1 && (
+          <span className="inline-block mt-0.5 px-1.5 py-0.5 rounded text-[10px] font-medium bg-blue-50 text-blue-700 border border-blue-100">
+            {ticket.affected_count} pages
+          </span>
+        )}
         {ticket.url && (
           ticket.url.startsWith('http') ? (
             <a

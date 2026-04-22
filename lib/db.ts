@@ -63,6 +63,7 @@ export async function initDb(seed = false) {
   await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assignment_reason TEXT`
   await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS needs_review      BOOLEAN NOT NULL DEFAULT false`
   await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS source_tool       TEXT`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS affected_count    INTEGER NOT NULL DEFAULT 1`
 
   // ── Indexes ───────────────────────────────────────────────────
 
