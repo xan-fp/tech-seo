@@ -46,7 +46,7 @@ export async function POST(request: NextRequest) {
 
   // Upload to Vercel Blob, save to DB
   try {
-    const blob = await put(file.name, buffer, { access: 'private' })
+    const blob = await put(file.name, buffer, { access: 'public' })
 
     const [upload] = await sql<{ id: string }[]>`
       INSERT INTO audit_uploads (filename, blob_url, row_count)
