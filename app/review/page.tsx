@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import SeverityBadge from '@/components/severity-badge'
 import OwnerLabel    from '@/components/owner-label'
 import type { Owner, Severity, Ticket } from '@/lib/types'
+import { getFixGuide } from '@/lib/fix-guide'
 
 // ── constants ────────────────────────────────────────────────────────────────
 
@@ -98,6 +99,8 @@ function BulkActionBar({
 
 // ── TicketPanel ───────────────────────────────────────────────────────────────
 
+type PanelTab = 'guide' | 'urls' | 'edit'
+
 function TicketPanel({
   ticket,
   onSave,
@@ -109,198 +112,224 @@ function TicketPanel({
   onAction: (id: string, status: 'approved' | 'rejected') => void
   onClose:  () => void
 }) {
-  const [form, setForm] = useState({
-    title:       ticket.title,
-    description: ticket.description ?? '',
-    owner:       ticket.owner as Owner,
-  })
+  const [tab,     setTab]     = useState<PanelTab>('guide')
+  const [form,    setForm]    = useState({ title: ticket.title, description: ticket.description ?? '', owner: ticket.owner as Owner })
   const [saving,  setSaving]  = useState(false)
   const [actBusy, setActBusy] = useState<'approved' | 'rejected' | null>(null)
   const [error,   setError]   = useState<string | null>(null)
   const [saved,   setSaved]   = useState(false)
 
-  // Reset form when a different ticket is selected
   useEffect(() => {
-    setForm({
-      title:       ticket.title,
-      description: ticket.description ?? '',
-      owner:       ticket.owner as Owner,
-    })
+    setForm({ title: ticket.title, description: ticket.description ?? '', owner: ticket.owner as Owner })
+    setTab('guide')
     setError(null)
     setSaved(false)
   }, [ticket.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const isDirty =
-    form.title       !== ticket.title         ||
-    form.description !== (ticket.description ?? '') ||
-    form.owner       !== ticket.owner
+  const isDirty = form.title !== ticket.title || form.description !== (ticket.description ?? '') || form.owner !== ticket.owner
 
   async function save() {
-    setSaving(true)
-    setError(null)
-    const ownerChanged = form.owner !== ticket.owner
-    const body: Record<string, unknown> = {
-      title:       form.title,
-      description: form.description || null,
-      owner:       form.owner,
-    }
-    // Clear the needs_review flag when owner is manually reassigned
-    if (ownerChanged) body.needs_review = false
-
-    const res  = await fetch(`/api/tickets/${ticket.id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
-    })
+    setSaving(true); setError(null)
+    const body: Record<string, unknown> = { title: form.title, description: form.description || null, owner: form.owner }
+    if (form.owner !== ticket.owner) body.needs_review = false
+    const res  = await fetch(`/api/tickets/${ticket.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) })
     const data = await res.json()
     setSaving(false)
     if (!res.ok) { setError(data.error ?? 'Save failed'); return }
-    setSaved(true)
-    onSave(data as Ticket)
-    setTimeout(() => setSaved(false), 2000)
+    setSaved(true); onSave(data as Ticket); setTimeout(() => setSaved(false), 2000)
   }
 
   async function act(status: 'approved' | 'rejected') {
     setActBusy(status)
-    const res = await fetch(`/api/tickets/${ticket.id}`, {
-      method:  'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify({ status }),
-    })
+    const res = await fetch(`/api/tickets/${ticket.id}`, { method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }) })
     setActBusy(null)
     if (res.ok) onAction(ticket.id, status)
   }
 
+  const guide = getFixGuide(ticket.issue_type)
+  const urls  = Array.isArray(ticket.affected_urls) ? ticket.affected_urls : []
+
   return (
-    <aside className="w-[380px] flex-shrink-0 card flex flex-col sticky top-4 max-h-[calc(100vh-6rem)] overflow-hidden">
+    <aside className="w-[420px] flex-shrink-0 card flex flex-col sticky top-4 max-h-[calc(100vh-6rem)] overflow-hidden">
+
       {/* ── Header ── */}
       <div className="flex items-start justify-between gap-2 p-4 border-b bg-gray-50">
-        <div className="flex flex-wrap gap-1.5 min-w-0">
-          <span className="inline-block px-2 py-0.5 rounded bg-gray-200 text-gray-700 text-xs font-medium truncate max-w-[200px]">
-            {ticket.issue_type}
-          </span>
-          {ticket.source_tool && (
-            <span className="inline-block px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-xs font-medium border border-indigo-200">
-              {ticket.source_tool}
-            </span>
-          )}
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900 truncate">{ticket.issue_type}</p>
+          <div className="flex flex-wrap gap-1.5 mt-1">
+            <SeverityBadge severity={ticket.severity as Severity} />
+            {ticket.source_tool && (
+              <span className="inline-block px-2 py-0.5 rounded bg-indigo-100 text-indigo-700 text-xs font-medium border border-indigo-200">
+                {ticket.source_tool}
+              </span>
+            )}
+            {ticket.affected_count > 1 && (
+              <span className="inline-block px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
+                {ticket.affected_count} pages
+              </span>
+            )}
+          </div>
         </div>
-        <button
-          onClick={onClose}
-          className="text-gray-400 hover:text-gray-700 text-lg leading-none flex-shrink-0 mt-0.5"
-          aria-label="Close panel"
-        >
-          ✕
-        </button>
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none flex-shrink-0">✕</button>
+      </div>
+
+      {/* ── Tabs ── */}
+      <div className="flex border-b bg-white">
+        {([
+          { id: 'guide', label: 'Fix Guide' },
+          { id: 'urls',  label: `Affected URLs${urls.length > 0 ? ` (${urls.length})` : ''}` },
+          { id: 'edit',  label: 'Edit' },
+        ] as { id: PanelTab; label: string }[]).map(t => (
+          <button
+            key={t.id}
+            onClick={() => setTab(t.id)}
+            className={`flex-1 py-2.5 text-xs font-medium border-b-2 transition-colors ${
+              tab === t.id
+                ? 'border-blue-600 text-blue-700'
+                : 'border-transparent text-gray-500 hover:text-gray-700'
+            }`}
+          >
+            {t.label}
+          </button>
+        ))}
       </div>
 
       {/* ── Scrollable body ── */}
-      <div className="flex-1 overflow-y-auto divide-y divide-gray-100">
+      <div className="flex-1 overflow-y-auto">
 
-        {/* Title + URL */}
-        <div className="p-4 space-y-3">
-          <div>
-            <label className="label">Title</label>
-            <input
-              className="input"
-              value={form.title}
-              onChange={e => setForm(f => ({ ...f, title: e.target.value }))}
-            />
+        {/* ── FIX GUIDE TAB ── */}
+        {tab === 'guide' && (
+          <div className="p-4 space-y-4">
+
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">What is this?</p>
+              <p className="text-sm text-gray-700 leading-relaxed">{guide.what}</p>
+            </div>
+
+            <div className="space-y-1">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Why it matters</p>
+              <p className="text-sm text-gray-700 leading-relaxed">{guide.why}</p>
+            </div>
+
+            <div className="space-y-2">
+              <p className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">How to fix it</p>
+              <ol className="space-y-2">
+                {guide.steps.map((step, i) => (
+                  <li key={i} className="flex gap-2.5 text-sm text-gray-700 leading-relaxed">
+                    <span className="flex-shrink-0 w-5 h-5 rounded-full bg-blue-100 text-blue-700 text-xs font-bold flex items-center justify-center mt-0.5">
+                      {i + 1}
+                    </span>
+                    <span>{step}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+
+            <div className="rounded-lg bg-amber-50 border border-amber-200 p-3">
+              <p className="text-[11px] font-semibold text-amber-700 uppercase tracking-wide mb-1">Who does this</p>
+              <p className="text-xs text-amber-800 leading-relaxed">{guide.owner}</p>
+            </div>
+
           </div>
-          {ticket.url && (
+        )}
+
+        {/* ── AFFECTED URLS TAB ── */}
+        {tab === 'urls' && (
+          <div>
+            {urls.length === 0 ? (
+              <div className="p-6 text-center text-sm text-gray-400">
+                No URLs recorded for this ticket.
+              </div>
+            ) : (
+              <>
+                <div className="px-4 py-2 bg-gray-50 border-b">
+                  <p className="text-xs text-gray-500">
+                    {urls.length} page{urls.length === 1 ? '' : 's'} affected — all need this fix
+                  </p>
+                </div>
+                <table className="w-full text-xs">
+                  <thead className="bg-gray-50 border-b">
+                    <tr>
+                      <th className="text-left py-2 px-4 text-gray-500 font-semibold">#</th>
+                      <th className="text-left py-2 px-4 text-gray-500 font-semibold">URL</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {urls.map((url, i) => (
+                      <tr key={i} className="border-b border-gray-50 hover:bg-gray-50">
+                        <td className="py-2 px-4 text-gray-400 w-8">{i + 1}</td>
+                        <td className="py-2 px-4">
+                          {url.startsWith('http') ? (
+                            <a
+                              href={url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-600 hover:underline break-all"
+                            >
+                              {url}
+                            </a>
+                          ) : (
+                            <span className="text-gray-700 break-all">{url}</span>
+                          )}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* ── EDIT TAB ── */}
+        {tab === 'edit' && (
+          <div className="p-4 space-y-4">
             <div>
-              <p className="label">Affected URL</p>
-              {ticket.url.startsWith('http') ? (
-                <a
-                  href={ticket.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-xs text-blue-600 hover:underline break-all"
-                >
-                  {ticket.url}
-                </a>
-              ) : (
-                <span className="text-xs text-gray-600 break-all">{ticket.url}</span>
+              <label className="label">Title</label>
+              <input className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} />
+            </div>
+            <div>
+              <label className="label">Description / Notes</label>
+              <textarea
+                className="input min-h-[100px] resize-y text-sm"
+                value={form.description}
+                onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
+                placeholder="Add context or notes for the assignee…"
+              />
+            </div>
+            <div>
+              <label className="label">Owner Bucket</label>
+              <div className="mb-2">
+                <OwnerLabel owner={form.owner} needsReview={ticket.needs_review && form.owner === ticket.owner} />
+              </div>
+              <select className="select" value={form.owner} onChange={e => setForm(f => ({ ...f, owner: e.target.value as Owner }))}>
+                <option value="site_content_lead">Site Content Lead</option>
+                <option value="copy_blog_lead">Copy / Blog Lead</option>
+                <option value="tech">Tech</option>
+              </select>
+              {form.owner !== ticket.owner && (
+                <p className="text-[11px] text-amber-600 mt-1">Changing owner will clear the &quot;needs review&quot; flag.</p>
               )}
             </div>
-          )}
-          <div className="flex items-center gap-2">
-            <SeverityBadge severity={ticket.severity as Severity} />
+            {ticket.assignment_reason && (
+              <p className="text-[11px] text-gray-400 italic leading-relaxed">{ticket.assignment_reason}</p>
+            )}
+            {error && <p className="text-xs text-red-600">{error}</p>}
+            <button className="btn-primary w-full text-xs py-2" onClick={save} disabled={saving || !isDirty}>
+              {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save changes'}
+            </button>
           </div>
-        </div>
-
-        {/* Evidence */}
-        <div className="p-4 space-y-2">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Evidence / Description
-          </p>
-          <textarea
-            className="input min-h-[90px] resize-y text-sm"
-            value={form.description}
-            onChange={e => setForm(f => ({ ...f, description: e.target.value }))}
-            placeholder="Describe the issue and paste any evidence from the audit tool…"
-          />
-          {ticket.assignment_reason && (
-            <p className="text-[11px] text-gray-400 italic leading-relaxed">
-              {ticket.assignment_reason}
-            </p>
-          )}
-        </div>
-
-        {/* Owner / Reassign */}
-        <div className="p-4 space-y-2">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wide">
-            Owner Bucket
-          </p>
-          <div className="flex items-center gap-2 flex-wrap">
-            <OwnerLabel owner={form.owner} needsReview={ticket.needs_review && form.owner === ticket.owner} />
-          </div>
-          <select
-            className="select"
-            value={form.owner}
-            onChange={e => setForm(f => ({ ...f, owner: e.target.value as Owner }))}
-          >
-            <option value="site_content_lead">Site Content Lead</option>
-            <option value="copy_blog_lead">Copy / Blog Lead</option>
-            <option value="tech">Tech</option>
-          </select>
-          {form.owner !== ticket.owner && (
-            <p className="text-[11px] text-amber-600">
-              Changing owner will clear the &quot;needs review&quot; flag.
-            </p>
-          )}
-        </div>
-
+        )}
       </div>
 
-      {/* ── Footer ── */}
-      <div className="p-4 border-t bg-gray-50 space-y-2">
-        {error && <p className="text-xs text-red-600">{error}</p>}
-        <div className="flex items-center gap-2 flex-wrap">
-          <button
-            className="btn-primary text-xs py-1.5 flex-1"
-            onClick={save}
-            disabled={saving || !isDirty}
-          >
-            {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save changes'}
-          </button>
-        </div>
-        <div className="flex items-center gap-2">
-          <button
-            className="btn-success text-xs py-1.5 flex-1"
-            onClick={() => act('approved')}
-            disabled={actBusy !== null}
-          >
-            {actBusy === 'approved' ? '…' : 'Approve'}
-          </button>
-          <button
-            className="btn-danger text-xs py-1.5 flex-1"
-            onClick={() => act('rejected')}
-            disabled={actBusy !== null}
-          >
-            {actBusy === 'rejected' ? '…' : 'Reject'}
-          </button>
-        </div>
+      {/* ── Footer: approve / reject always visible ── */}
+      <div className="p-4 border-t bg-gray-50 flex gap-2">
+        <button className="btn-success text-xs py-2 flex-1" onClick={() => act('approved')} disabled={actBusy !== null}>
+          {actBusy === 'approved' ? '…' : '✓ Approve'}
+        </button>
+        <button className="btn-danger text-xs py-2 flex-1" onClick={() => act('rejected')} disabled={actBusy !== null}>
+          {actBusy === 'rejected' ? '…' : '✕ Reject'}
+        </button>
       </div>
     </aside>
   )
