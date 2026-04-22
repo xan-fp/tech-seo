@@ -541,6 +541,9 @@ export default function ReviewPage() {
                     <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500">
                       Owner
                     </th>
+                    <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500">
+                      URLs
+                    </th>
                     <th className="py-2.5 px-3 text-xs font-semibold text-gray-500 text-right">
                       Actions
                     </th>
@@ -683,6 +686,25 @@ function TicketTableRow({
       {/* Owner */}
       <td className="py-3 px-3">
         <OwnerLabel owner={ticket.owner as Owner} />
+      </td>
+
+      {/* URLs — download CSV to open in Google Sheets */}
+      <td className="py-3 px-3 whitespace-nowrap" onClick={e => e.stopPropagation()}>
+        {ticket.affected_count > 0 ? (
+          <a
+            href={`/api/tickets/${ticket.id}/urls`}
+            download
+            className="inline-flex items-center gap-1 px-2 py-1 rounded text-xs font-medium bg-emerald-50 text-emerald-700 border border-emerald-200 hover:bg-emerald-100 transition-colors"
+            title="Download affected URLs as CSV (open in Google Sheets)"
+          >
+            <svg className="w-3 h-3" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.8">
+              <path d="M8 2v8M5 7l3 3 3-3M2 12h12" strokeLinecap="round" strokeLinejoin="round"/>
+            </svg>
+            {ticket.affected_count} URLs
+          </a>
+        ) : (
+          <span className="text-xs text-gray-400">—</span>
+        )}
       </td>
 
       {/* Actions */}
