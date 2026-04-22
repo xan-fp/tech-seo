@@ -210,14 +210,18 @@ function TicketPanel({
           {ticket.url && (
             <div>
               <p className="label">Affected URL</p>
-              <a
-                href={ticket.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-xs text-blue-600 hover:underline break-all"
-              >
-                {ticket.url}
-              </a>
+              {ticket.url.startsWith('http') ? (
+                <a
+                  href={ticket.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-600 hover:underline break-all"
+                >
+                  {ticket.url}
+                </a>
+              ) : (
+                <span className="text-xs text-gray-600 break-all">{ticket.url}</span>
+              )}
             </div>
           )}
           <div className="flex items-center gap-2">
@@ -601,15 +605,21 @@ function TicketTableRow({
           {ticket.title}
         </p>
         {ticket.url && (
-          <a
-            href={ticket.url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs text-blue-500 hover:underline truncate block max-w-[220px] mt-0.5"
-            onClick={e => e.stopPropagation()}
-          >
-            {ticket.url}
-          </a>
+          ticket.url.startsWith('http') ? (
+            <a
+              href={ticket.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="text-xs text-blue-500 hover:underline truncate block max-w-[220px] mt-0.5"
+              onClick={e => e.stopPropagation()}
+            >
+              {ticket.url}
+            </a>
+          ) : (
+            <span className="text-xs text-gray-400 truncate block max-w-[220px] mt-0.5">
+              {ticket.url}
+            </span>
+          )
         )}
         {ticket.needs_review && (
           <span className="inline-block mt-1 px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-100 text-amber-700 border border-amber-200">

@@ -163,14 +163,20 @@ export default function BacklogPage() {
                   <td className="py-3 px-4 max-w-[240px]">
                     <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-snug">{t.title}</p>
                     {t.url && (
-                      <a
-                        href={t.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-blue-500 hover:underline truncate block max-w-[220px] mt-0.5"
-                      >
-                        {t.url}
-                      </a>
+                      t.url.startsWith('http') ? (
+                        <a
+                          href={t.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-blue-500 hover:underline truncate block max-w-[220px] mt-0.5"
+                        >
+                          {t.url}
+                        </a>
+                      ) : (
+                        <span className="text-xs text-gray-400 truncate block max-w-[220px] mt-0.5">
+                          {t.url}
+                        </span>
+                      )
                     )}
                   </td>
                   <td className="py-3 px-4 text-xs text-gray-600 whitespace-nowrap">{t.issue_type}</td>
