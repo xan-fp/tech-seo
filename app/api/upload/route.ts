@@ -44,38 +44,42 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'No issues found in the file. Check that it has the expected columns.' }, { status: 422 })
   }
 
-  // Upload the original file to Vercel Blob for record-keeping
-  const blob = await put(file.name, buffer, { access: 'public' })
+  // Upload to Vercel Blob, save to DB
+  try {
+    const blob = await put(file.name, buffer, { access: 'public' })
 
-  // Insert upload record
-  const [upload] = await sql<{ id: string }[]>`
-    INSERT INTO audit_uploads (filename, blob_url, row_count)
-    VALUES (${file.name}, ${blob.url}, ${issues.length})
-    RETURNING id
-  `
-
-  // Batch-insert draft tickets
-  for (const issue of issues) {
-    await sql`
-      INSERT INTO tickets (upload_id, title, description, url, issue_type, severity, owner, source_tool, assignment_reason, needs_review)
-      VALUES (
-        ${upload.id},
-        ${issue.title},
-        ${issue.description ?? null},
-        ${issue.url ?? null},
-        ${issue.issue_type},
-        ${issue.severity},
-        ${issue.owner},
-        ${issue.source_tool ?? null},
-        ${issue.assignment_reason ?? null},
-        ${issue.needs_review}
-      )
+    const [upload] = await sql<{ id: string }[]>`
+      INSERT INTO audit_uploads (filename, blob_url, row_count)
+      VALUES (${file.name}, ${blob.url}, ${issues.length})
+      RETURNING id
     `
-  }
 
-  return NextResponse.json({
-    ok:          true,
-    uploadId:    upload.id,
-    ticketCount: issues.length,
-  })
+    for (const issue of issues) {
+      await sql`
+        INSERT INTO tickets (upload_id, title, description, url, issue_type, severity, owner, source_tool, assignment_reason, needs_review)
+        VALUES (
+          ${upload.id},
+          ${issue.title},
+          ${issue.description ?? null},
+          ${issue.url ?? null},
+          ${issue.issue_type},
+          ${issue.severity},
+          ${issue.owner},
+          ${issue.source_tool ?? null},
+          ${issue.assignment_reason ?? null},
+          ${issue.needs_review}
+        )
+      `
+    }
+
+    return NextResponse.json({
+      ok:          true,
+      uploadId:    upload.id,
+      ticketCount: issues.length,
+    })
+  } catch (err) {
+    const msg = err instanceof Error ? err.message : String(err)
+    console.error('[upload] Error:', err)
+    return NextResponse.json({ error: `Upload failed: ${msg}` }, { status: 500 })
+  }
 }
