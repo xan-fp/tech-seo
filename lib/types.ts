@@ -36,6 +36,7 @@ export interface Ticket {
   assignment_reason: string | null
   needs_review:      boolean
   affected_count:    number
+  affected_urls:     string[]
   created_at:        string
   updated_at:        string
 }

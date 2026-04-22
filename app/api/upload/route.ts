@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       await sql`
         INSERT INTO tickets
           (upload_id, title, description, url, issue_type, severity, owner,
-           source_tool, assignment_reason, needs_review, affected_count)
+           source_tool, assignment_reason, needs_review, affected_count, affected_urls)
         VALUES (
           ${upload.id},
           ${issue.title},
@@ -75,7 +75,8 @@ export async function POST(request: NextRequest) {
           ${issue.source_tool ?? null},
           ${issue.assignment_reason ?? null},
           ${issue.needs_review},
-          ${issue.affected_count}
+          ${issue.affected_count},
+          ${JSON.stringify(issue.affected_urls)}
         )
       `
     }
