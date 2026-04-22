@@ -1,25 +1,17 @@
 import postgres from 'postgres'
 
-// Vercel Postgres (Marketplace) injects POSTGRES_URL / POSTGRES_URL_NON_POOLING.
-// Standard / Neon / Supabase direct setups use DATABASE_URL.
-// Prefer the non-pooling URL for DDL (ALTER TABLE, CREATE INDEX, etc.) so
-// postgres.js can manage its own single connection rather than going through
-// PgBouncer, which sometimes strips prepared-statement support.
+// Vercel Postgres (Marketplace) injects POSTGRES_URL* vars automatically.
+// External databases (Neon, Supabase, etc.) use DATABASE_URL.
+// We fall back to a local placeholder so this module loads cleanly at build
+// time — postgres.js is lazy and won't actually connect until the first query.
 const connectionString =
   process.env.POSTGRES_URL_NON_POOLING ??
   process.env.POSTGRES_URL ??
-  process.env.DATABASE_URL
+  process.env.DATABASE_URL ??
+  'postgres://localhost/not_configured'
 
-if (!connectionString) {
-  throw new Error(
-    'No database connection string found. ' +
-    'Set POSTGRES_URL_NON_POOLING, POSTGRES_URL, or DATABASE_URL in your environment.',
-  )
-}
-
-// postgres.js — single connection, safe for serverless cold-starts
 const sql = postgres(connectionString, {
-  ssl: 'require',
+  ssl: connectionString === 'postgres://localhost/not_configured' ? false : 'require',
   max: 1,
   idle_timeout: 20,
   connect_timeout: 10,

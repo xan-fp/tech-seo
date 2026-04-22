@@ -10,9 +10,10 @@ export const dynamic = 'force-dynamic'
  */
 export async function GET(request: Request) {
   // Quick env-var check so misconfiguration is obvious immediately
-  if (!process.env.DATABASE_URL) {
+  const hasDb = process.env.POSTGRES_URL_NON_POOLING ?? process.env.POSTGRES_URL ?? process.env.DATABASE_URL
+  if (!hasDb) {
     return NextResponse.json(
-      { ok: false, error: 'DATABASE_URL is not set. Add it to your .env file and restart the dev server.' },
+      { ok: false, error: 'No database URL found. Add Vercel Postgres via the Storage tab, then redeploy.' },
       { status: 500 },
     )
   }
