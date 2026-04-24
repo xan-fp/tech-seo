@@ -1,5 +1,5 @@
 import { Resend } from 'resend'
-import type { TeamMember, Ticket } from './types'
+import type { TeamMember, Ticket, TicketComment } from './types'
 import { getFixGuide } from './fix-guide'
 
 // Lazy-init so missing key doesn't crash at build time
@@ -168,6 +168,163 @@ function buildHtml(ticket: Ticket, code: string): string {
   </table>
 </body>
 </html>`
+}
+
+// ── Status labels ─────────────────────────────────────────────────────────────
+
+const STATUS_LABEL: Record<string, string> = {
+  draft:       'Draft',
+  approved:    'Approved',
+  in_progress: 'In Progress',
+  done:        'Done',
+  rejected:    'Rejected',
+}
+
+const STATUS_COLOR: Record<string, string> = {
+  draft:       '#6b7280',
+  approved:    '#16a34a',
+  in_progress: '#2563eb',
+  done:        '#7c3aed',
+  rejected:    '#dc2626',
+}
+
+// ── Status update email ───────────────────────────────────────────────────────
+
+export async function sendStatusUpdateEmail(
+  ticket:     Ticket,
+  newStatus:  string,
+  recipients: TeamMember[],
+): Promise<void> {
+  const resend = getResend()
+  if (!resend || recipients.length === 0) return
+
+  const from  = process.env.RESEND_FROM_EMAIL ?? 'SEO Audit <onboarding@resend.dev>'
+  const code  = ticketCode(ticket.id)
+  const label = STATUS_LABEL[newStatus] ?? newStatus
+  const color = STATUS_COLOR[newStatus] ?? '#6b7280'
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;">
+        <tr>
+          <td style="background:#4f46e5;padding:24px 32px;">
+            <p style="margin:0;color:#c7d2fe;font-size:12px;text-transform:uppercase;letter-spacing:.08em;">SEO Audit Tool</p>
+            <h1 style="margin:6px 0 0;color:#fff;font-size:20px;font-weight:700;">Ticket Status Updated</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:28px 32px;">
+            <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">${code}</p>
+            <h2 style="margin:0 0 20px;font-size:17px;color:#111827;">${ticket.title}</h2>
+            <table cellpadding="0" cellspacing="0">
+              <tr>
+                <td style="padding-right:12px;font-size:13px;color:#6b7280;">New status</td>
+                <td>
+                  <span style="display:inline-block;padding:4px 14px;border-radius:99px;background:${color}22;color:${color};font-size:13px;font-weight:700;">${label}</span>
+                </td>
+              </tr>
+            </table>
+            <hr style="border:none;border-top:1px solid #e5e7eb;margin:20px 0;">
+            <p style="margin:0;font-size:13px;color:#6b7280;line-height:1.6;">
+              ${ticket.description ?? 'No description provided.'}
+            </p>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 32px 24px;border-top:1px solid #f3f4f6;">
+            <p style="margin:0;font-size:12px;color:#9ca3af;">
+              This email was sent automatically when the ticket status changed.<br>Ticket ID: ${code}
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+
+  await resend.emails.send({
+    from,
+    to:      recipients.map(m => m.email),
+    subject: `📋 Ticket ${code} is now ${label} — ${ticket.title}`,
+    html,
+  })
+}
+
+// ── Comment mention notification ──────────────────────────────────────────────
+
+export async function sendCommentNotification(
+  ticket:     Ticket,
+  comment:    TicketComment,
+  recipients: TeamMember[],
+): Promise<void> {
+  const resend = getResend()
+  if (!resend || recipients.length === 0) return
+
+  const from = process.env.RESEND_FROM_EMAIL ?? 'SEO Audit <onboarding@resend.dev>'
+  const code = ticketCode(ticket.id)
+
+  // Escape HTML in comment content and linkify URLs
+  const safeContent = comment.content
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/\n/g, '<br>')
+
+  const html = `<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="UTF-8"></head>
+<body style="margin:0;padding:0;background:#f9fafb;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background:#f9fafb;padding:32px 0;">
+    <tr><td align="center">
+      <table width="600" cellpadding="0" cellspacing="0" style="background:#fff;border-radius:12px;border:1px solid #e5e7eb;overflow:hidden;">
+        <tr>
+          <td style="background:#4f46e5;padding:24px 32px;">
+            <p style="margin:0;color:#c7d2fe;font-size:12px;text-transform:uppercase;letter-spacing:.08em;">SEO Audit Tool</p>
+            <h1 style="margin:6px 0 0;color:#fff;font-size:20px;font-weight:700;">You were mentioned in a comment</h1>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:24px 32px 0;">
+            <p style="margin:0 0 4px;font-size:12px;color:#9ca3af;">${code} · ${ticket.issue_type}</p>
+            <h2 style="margin:0 0 16px;font-size:16px;color:#111827;">${ticket.title}</h2>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:0 32px 24px;">
+            <table cellpadding="0" cellspacing="0" width="100%" style="background:#f5f3ff;border-left:3px solid #6366f1;border-radius:0 8px 8px 0;padding:14px 16px;">
+              <tr>
+                <td>
+                  <p style="margin:0 0 6px;font-size:12px;font-weight:700;color:#6366f1;">${comment.author}</p>
+                  <p style="margin:0;font-size:14px;color:#374151;line-height:1.6;">${safeContent}</p>
+                </td>
+              </tr>
+            </table>
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:16px 32px 24px;border-top:1px solid #f3f4f6;">
+            <p style="margin:0;font-size:12px;color:#9ca3af;">
+              You received this because you were mentioned in this comment.<br>Ticket ID: ${code}
+            </p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`
+
+  await resend.emails.send({
+    from,
+    to:      recipients.map(m => m.email),
+    subject: `💬 ${comment.author} mentioned you on ${code} — ${ticket.title}`,
+    html,
+  })
 }
 
 /**

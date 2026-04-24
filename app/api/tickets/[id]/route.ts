@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import sql, { parseJsonArray } from '@/lib/db'
-import { sendApprovalEmail } from '@/lib/email'
+import { sendApprovalEmail, sendStatusUpdateEmail } from '@/lib/email'
 import type { TeamMember, Ticket } from '@/lib/types'
 
 export const dynamic = 'force-dynamic'
@@ -50,18 +50,20 @@ export async function PATCH(request: NextRequest, { params }: Params) {
 
   ticket.affected_urls = parseJsonArray(ticket.affected_urls)
 
-  // Fire approval email when transitioning draft → approved
-  if (updates.status === 'approved' && before.status !== 'approved') {
+  // Fire emails on status change
+  if (updates.status && updates.status !== before.status) {
     try {
       const recipients = await sql<TeamMember[]>`
         SELECT id, name, email, owner_bucket, created_at
-        FROM team_members
-        WHERE owner_bucket = ${ticket.owner}
+        FROM team_members WHERE owner_bucket = ${ticket.owner}
       `
-      await sendApprovalEmail(ticket, recipients)
+      if (updates.status === 'approved') {
+        await sendApprovalEmail(ticket, recipients)
+      } else {
+        await sendStatusUpdateEmail(ticket, updates.status as string, recipients)
+      }
     } catch (err) {
-      // Email failure must never break the ticket update response
-      console.error('Approval email failed:', err)
+      console.error('Status email failed:', err)
     }
   }
 
