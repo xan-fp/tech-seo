@@ -9,6 +9,7 @@ const links = [
   { href: '/upload',  label: 'Upload Audit' },
   { href: '/review',  label: 'Review Queue' },
   { href: '/backlog', label: 'Backlog' },
+  { href: '/team',    label: 'Team' },
 ]
 
 export default function Nav() {

@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import SeverityBadge from '@/components/severity-badge'
 import OwnerLabel    from '@/components/owner-label'
-import type { Owner, Severity, Ticket } from '@/lib/types'
+import type { Owner, Severity, TeamMember, Ticket } from '@/lib/types'
 import { getFixGuide } from '@/lib/fix-guide'
 
 // ── constants ────────────────────────────────────────────────────────────────
@@ -103,14 +103,16 @@ type PanelTab = 'guide' | 'urls' | 'edit'
 
 function TicketPanel({
   ticket,
+  teamMembers,
   onSave,
   onAction,
   onClose,
 }: {
-  ticket:   Ticket
-  onSave:   (updated: Ticket) => void
-  onAction: (id: string, status: 'approved' | 'rejected') => void
-  onClose:  () => void
+  ticket:      Ticket
+  teamMembers: TeamMember[]
+  onSave:      (updated: Ticket) => void
+  onAction:    (id: string, status: 'approved' | 'rejected') => void
+  onClose:     () => void
 }) {
   const [tab,     setTab]     = useState<PanelTab>('guide')
   const [form,    setForm]    = useState({ title: ticket.title, description: ticket.description ?? '', owner: ticket.owner as Owner })
@@ -146,8 +148,9 @@ function TicketPanel({
     if (res.ok) onAction(ticket.id, status)
   }
 
-  const guide = getFixGuide(ticket.issue_type)
-  const urls  = Array.isArray(ticket.affected_urls) ? ticket.affected_urls : []
+  const guide   = getFixGuide(ticket.issue_type)
+  const urls    = Array.isArray(ticket.affected_urls) ? ticket.affected_urls : []
+  const assigns = teamMembers.filter(m => m.owner_bucket === ticket.owner)
 
   return (
     <aside className="w-[420px] flex-shrink-0 card flex flex-col sticky top-4 max-h-[calc(100vh-6rem)] overflow-hidden">
@@ -172,6 +175,24 @@ function TicketPanel({
         </div>
         <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg leading-none flex-shrink-0">✕</button>
       </div>
+
+      {/* Assigned people */}
+      {assigns.length > 0 && (
+        <div className="px-4 py-2.5 bg-white border-b flex flex-wrap gap-2 items-center">
+          <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wide">Assigned to</span>
+          {assigns.map(m => (
+            <span
+              key={m.id}
+              className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-gray-100 text-xs text-gray-700 border border-gray-200"
+            >
+              <span className="w-4 h-4 rounded-full bg-gray-300 flex items-center justify-center text-[9px] font-bold text-gray-600">
+                {m.name.split(' ').map(w => w[0]).join('').toUpperCase().slice(0, 2)}
+              </span>
+              {m.name}
+            </span>
+          ))}
+        </div>
+      )}
 
       {/* ── Tabs ── */}
       <div className="flex border-b bg-white">
@@ -338,25 +359,29 @@ function TicketPanel({
 // ── Page ─────────────────────────────────────────────────────────────────────
 
 export default function ReviewPage() {
-  const [allTickets, setAllTickets] = useState<Ticket[]>([])
-  const [loading,    setLoading]    = useState(true)
-  const [selected,   setSelected]   = useState<Ticket | null>(null)
-  const [checkedIds, setCheckedIds] = useState<Set<string>>(new Set())
-  const [bulkBusy,   setBulkBusy]   = useState(false)
+  const [allTickets,  setAllTickets]  = useState<Ticket[]>([])
+  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([])
+  const [loading,     setLoading]     = useState(true)
+  const [selected,    setSelected]    = useState<Ticket | null>(null)
+  const [checkedIds,  setCheckedIds]  = useState<Set<string>>(new Set())
+  const [bulkBusy,    setBulkBusy]    = useState(false)
   const [filters, setFilters] = useState({ owner: '', severity: '', sourceTool: '' })
   const checkAllRef = useRef<HTMLInputElement>(null)
 
   // ── Load ──
   const load = useCallback(() => {
     setLoading(true)
-    fetch('/api/tickets?status=draft')
-      .then(r => {
-        if (!r.ok) throw new Error(`API error ${r.status}`)
-        return r.json()
+    Promise.all([
+      fetch('/api/tickets?status=draft').then(r => r.json()) as Promise<Ticket[]>,
+      fetch('/api/team').then(r => r.json()) as Promise<TeamMember[]>,
+    ])
+      .then(([tickets, team]) => {
+        setAllTickets(tickets)
+        setTeamMembers(team)
+        setLoading(false)
       })
-      .then((data: Ticket[]) => { setAllTickets(data); setLoading(false) })
       .catch(err => {
-        console.error('Failed to load tickets:', err)
+        console.error('Failed to load:', err)
         setLoading(false)
       })
   }, [])
@@ -571,6 +596,7 @@ export default function ReviewPage() {
           {selected && (
             <TicketPanel
               ticket={selected}
+              teamMembers={teamMembers}
               onSave={handleSave}
               onAction={handleAction}
               onClose={() => setSelected(null)}
