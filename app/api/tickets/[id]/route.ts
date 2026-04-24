@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import sql from '@/lib/db'
+import sql, { parseJsonArray } from '@/lib/db'
 import { sendApprovalEmail } from '@/lib/email'
 import type { TeamMember, Ticket } from '@/lib/types'
 
@@ -47,6 +47,8 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   if (!ticket) {
     return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 })
   }
+
+  ticket.affected_urls = parseJsonArray(ticket.affected_urls)
 
   // Fire approval email when transitioning draft → approved
   if (updates.status === 'approved' && before.status !== 'approved') {

@@ -19,6 +19,15 @@ const sql = postgres(connectionString, {
 
 export default sql
 
+/** Safely parse a JSONB value that may come back as a string or already-parsed array. */
+export function parseJsonArray(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw as string[]
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw) as string[] } catch { /* fall through */ }
+  }
+  return []
+}
+
 /**
  * Initialise the schema and apply all column additions idempotently.
  * Hit GET /api/db-setup to trigger this after deployment.

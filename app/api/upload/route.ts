@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
           ${issue.assignment_reason ?? null},
           ${issue.needs_review},
           ${issue.affected_count},
-          ${JSON.stringify(issue.affected_urls)}
+          ${sql.json(issue.affected_urls)}
         )
       `
     }

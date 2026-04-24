@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import sql from '@/lib/db'
+import sql, { parseJsonArray } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -21,7 +21,7 @@ export async function GET(
   }
 
   const { title, issue_type, affected_urls } = rows[0]
-  const urls: string[] = Array.isArray(affected_urls) ? affected_urls : []
+  const urls = parseJsonArray(affected_urls)
 
   // Build CSV — two columns: #  and  URL
   const header = 'URL,Issue Type'
