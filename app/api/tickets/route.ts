@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import sql from '@/lib/db'
+import sql, { parseJsonArray } from '@/lib/db'
 
 export const dynamic = 'force-dynamic'
 
@@ -40,7 +40,12 @@ export async function GET(request: NextRequest) {
         END,
         created_at DESC
     `
-    return NextResponse.json(tickets)
+    // Normalize affected_urls — may be stored as a JSON string in older rows
+    const normalized = tickets.map(t => ({
+      ...t,
+      affected_urls: parseJsonArray(t.affected_urls),
+    }))
+    return NextResponse.json(normalized)
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err)
     return NextResponse.json({ error: message }, { status: 500 })
