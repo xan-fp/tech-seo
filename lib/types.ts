@@ -57,6 +57,17 @@ export interface ParsedIssue {
   affected_urls:     string[]        // all URLs from the group
 }
 
+// ── Ticket comments ───────────────────────────────────────────
+
+export interface TicketComment {
+  id:         string
+  ticket_id:  string
+  author:     string
+  content:    string
+  mentions:   string[]   // team_member IDs
+  created_at: string
+}
+
 // ── Team members (owner bucket → real people) ────────────────
 
 export interface TeamMember {

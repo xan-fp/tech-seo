@@ -75,6 +75,20 @@ export async function initDb(seed = false) {
   await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS affected_count    INTEGER NOT NULL DEFAULT 1`
   await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS affected_urls     JSONB NOT NULL DEFAULT '[]'`
 
+  // ── Ticket comments ──────────────────────────────────────────
+
+  await sql`
+    CREATE TABLE IF NOT EXISTS ticket_comments (
+      id          UUID        PRIMARY KEY DEFAULT gen_random_uuid(),
+      ticket_id   UUID        NOT NULL REFERENCES tickets(id) ON DELETE CASCADE,
+      author      TEXT        NOT NULL,
+      content     TEXT        NOT NULL,
+      mentions    JSONB       NOT NULL DEFAULT '[]',
+      created_at  TIMESTAMPTZ DEFAULT NOW()
+    )
+  `
+  await sql`CREATE INDEX IF NOT EXISTS idx_comments_ticket ON ticket_comments(ticket_id)`
+
   // ── Team members ─────────────────────────────────────────────
 
   await sql`
