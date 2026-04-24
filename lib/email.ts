@@ -12,8 +12,16 @@ function ticketCode(id: string) {
   return `TKT-${id.slice(0, 8).toUpperCase()}`
 }
 
+function parseUrls(raw: unknown): string[] {
+  if (Array.isArray(raw)) return raw as string[]
+  if (typeof raw === 'string') {
+    try { return JSON.parse(raw) as string[] } catch { /* fall through */ }
+  }
+  return []
+}
+
 function buildCsv(ticket: Ticket): string {
-  const urls: string[] = Array.isArray(ticket.affected_urls) ? ticket.affected_urls : []
+  const urls = parseUrls(ticket.affected_urls)
   const rows = urls.map(url => {
     const safeUrl   = `"${url.replace(/"/g, '""')}"`
     const safeIssue = `"${ticket.issue_type.replace(/"/g, '""')}"`
@@ -177,7 +185,8 @@ export async function sendApprovalEmail(
   const code = ticketCode(ticket.id)
   const csv  = buildCsv(ticket)
 
-  const safeName = ticket.title.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').slice(0, 60)
+  const safeIssue = ticket.issue_type.replace(/[^\w\s-]/g, '').trim().replace(/\s+/g, '-').slice(0, 50)
+  const filename  = `${code}-${safeIssue}-urls.csv`
 
   await resend.emails.send({
     from,
@@ -186,8 +195,8 @@ export async function sendApprovalEmail(
     html:    buildHtml(ticket, code),
     attachments: [
       {
-        filename: `${safeName}-affected-urls.csv`,
-        content:  Buffer.from(csv).toString('base64'),
+        filename,
+        content: Buffer.from(csv).toString('base64'),
       },
     ],
   })
