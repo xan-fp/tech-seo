@@ -53,17 +53,22 @@ function AddMemberForm({
   async function submit(e: React.FormEvent) {
     e.preventDefault()
     setBusy(true); setError(null)
-    const res  = await fetch('/api/team', {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(form),
-    })
-    const data = await res.json()
-    setBusy(false)
-    if (!res.ok) { setError(data.error ?? 'Failed to add member'); return }
-    onAdded(data as TeamMember)
-    setForm({ ...EMPTY_FORM, owner_bucket: defaultBucket })
-    setOpen(false)
+    try {
+      const res  = await fetch('/api/team', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(form),
+      })
+      const data = await res.json()
+      if (!res.ok) { setError(data.error ?? 'Failed to add member'); return }
+      onAdded(data as TeamMember)
+      setForm({ ...EMPTY_FORM, owner_bucket: defaultBucket })
+      setOpen(false)
+    } catch {
+      setError('Network error — make sure the database is set up (/api/db-setup)')
+    } finally {
+      setBusy(false)
+    }
   }
 
   if (!open) {
