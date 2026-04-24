@@ -57,6 +57,16 @@ export interface ParsedIssue {
   affected_urls:     string[]        // all URLs from the group
 }
 
+// ── Team members (owner bucket → real people) ────────────────
+
+export interface TeamMember {
+  id:           string
+  name:         string
+  email:        string
+  owner_bucket: Owner
+  created_at:   string
+}
+
 // ── New entity types (new schema tables) ─────────────────────
 
 export interface User {
