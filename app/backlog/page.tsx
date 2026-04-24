@@ -91,7 +91,10 @@ function TicketPanel({
     setLoadingComments(true)
     fetch(`/api/tickets/${ticket.id}/comments`)
       .then(r => r.json())
-      .then((data: TicketComment[]) => { setComments(data); setLoadingComments(false) })
+      .then((data: unknown) => {
+        setComments(Array.isArray(data) ? data as TicketComment[] : [])
+        setLoadingComments(false)
+      })
       .catch(() => setLoadingComments(false))
   }, [ticket.id]) // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -344,12 +347,14 @@ export default function BacklogPage() {
     if (!status)  params.set('status', 'approved,in_progress,done,rejected')
 
     Promise.all([
-      fetch(`/api/tickets?${params}`).then(r => r.json()) as Promise<Ticket[]>,
-      fetch('/api/team').then(r => r.json()) as Promise<TeamMember[]>,
+      fetch(`/api/tickets?${params}`).then(r => r.json()),
+      fetch('/api/team').then(r => r.json()),
     ])
       .then(([ticketData, teamData]) => {
-        setTickets(needsReview ? ticketData.filter(t => t.needs_review) : ticketData)
-        setTeamMembers(teamData)
+        const safeTickets: Ticket[]     = Array.isArray(ticketData) ? ticketData : []
+        const safeTeam:    TeamMember[] = Array.isArray(teamData)   ? teamData   : []
+        setTickets(needsReview ? safeTickets.filter(t => t.needs_review) : safeTickets)
+        setTeamMembers(safeTeam)
         setLoading(false)
       })
       .catch(() => setLoading(false))
