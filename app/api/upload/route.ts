@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { put } from '@vercel/blob'
 import { parseAuditFile, dedupeIssues } from '@/lib/parse-audit'
-import { classifyUnknownIssues } from '@/lib/classify'
+import { classifyRawUnknowns, classifyAmbiguousTickets } from '@/lib/classify'
 import sql from '@/lib/db'
 
 export const dynamic     = 'force-dynamic'
@@ -47,11 +47,16 @@ export async function POST(request: NextRequest) {
     )
   }
 
-  // 2 — Deduplicate: group by issue type → one ticket per category
-  const deduped = dedupeIssues(rawIssues)
+  // 2 — AI pass 1: classify "Unknown Issue" rows BEFORE dedup so they
+  //     get proper types and group correctly (not all into one blob)
+  const classifiedRaw = await classifyRawUnknowns(rawIssues)
 
-  // 3 — AI classify any remaining "Unknown Issue" types using Claude
-  const issues = await classifyUnknownIssues(deduped)
+  // 3 — Deduplicate: group by issue type → one ticket per category
+  const deduped = dedupeIssues(classifiedRaw)
+
+  // 4 — AI pass 2: reclassify any ticket still ambiguous after dedup
+  //     (needs_review=true or leftover "Unknown Issue")
+  const issues = await classifyAmbiguousTickets(deduped)
 
   // 4 — Upload file to Vercel Blob + insert tickets
   try {
