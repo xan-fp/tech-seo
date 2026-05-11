@@ -17,7 +17,8 @@
  */
 
 import Anthropic from '@anthropic-ai/sdk'
-import type { Owner, ParsedIssue, Severity } from './types'
+import type { Owner, ParsedIssue, Severity, SeoCategory, Impact, Effort, Confidence } from './types'
+import { SEO_CATEGORIES } from './types'
 
 // ── client ────────────────────────────────────────────────────────────────────
 
@@ -29,13 +30,21 @@ function getClient(): Anthropic | null {
 // ── shared types ──────────────────────────────────────────────────────────────
 
 interface Classification {
-  issue_type:  string
-  owner:       Owner
-  severity:    Severity
-  description: string
+  issue_type:      string
+  owner:           Owner
+  severity:        Severity
+  description:     string
+  category?:       SeoCategory | null
+  priority?:       string
+  impact?:         Impact
+  effort?:         Effort
+  confidence?:     Confidence
+  recommended_fix?: string | null
 }
 
 // ── system prompt ─────────────────────────────────────────────────────────────
+
+const CATEGORY_LIST = SEO_CATEGORIES.join(' | ')
 
 const SYSTEM = `You are a senior SEO specialist. Classify SEO audit issues.
 
@@ -50,7 +59,13 @@ Severity:
 - medium: moderate SEO impact, should be fixed
 - low: minor improvement opportunity
 
-Always return ONLY a valid JSON array — no markdown, no explanation.`
+Category (pick the single best match or null):
+${CATEGORY_LIST}
+
+Impact / Effort / Confidence: each is "high" | "medium" | "low"
+
+Always return ONLY a valid JSON array — no markdown, no explanation.
+Each object: { "issue_type": "...", "owner": "...", "severity": "...", "description": "...", "category": "...", "impact": "...", "effort": "...", "confidence": "...", "recommended_fix": "..." }`
 
 // ── helper: call Claude and parse JSON array ──────────────────────────────────
 
@@ -151,6 +166,11 @@ Return a JSON array with exactly ${toClassify.length} objects:
           owner:             cls.owner,
           severity:          cls.severity,
           description:       cls.description,
+          category:          cls.category ?? null,
+          impact:            cls.impact            ?? updated[i].impact,
+          effort:            cls.effort            ?? updated[i].effort,
+          confidence:        cls.confidence        ?? updated[i].confidence,
+          recommended_fix:   cls.recommended_fix   ?? updated[i].recommended_fix,
           assignment_reason: `Classified by Claude AI — assigned to ${cls.owner}.`,
           needs_review:      false,
         }
@@ -214,6 +234,11 @@ Return a JSON array with exactly ${targets.length} objects:
         owner:             cls.owner,
         severity:          cls.severity,
         description:       cls.description + urlBlock,
+        category:          cls.category          ?? issue.category,
+        impact:            cls.impact            ?? issue.impact,
+        effort:            cls.effort            ?? issue.effort,
+        confidence:        cls.confidence        ?? issue.confidence,
+        recommended_fix:   cls.recommended_fix   ?? issue.recommended_fix,
         assignment_reason: `Classified by Claude AI — assigned to ${cls.owner}.`,
         needs_review:      false,
         title: count > 1

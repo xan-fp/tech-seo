@@ -69,23 +69,43 @@ export async function POST(request: NextRequest) {
     `
 
     for (const issue of issues) {
+      // example_urls: first 5 unique URLs
+      const exampleUrls = issue.affected_urls.slice(0, 5)
+
       await sql`
-        INSERT INTO tickets
-          (upload_id, title, description, url, issue_type, severity, owner,
-           source_tool, assignment_reason, needs_review, affected_count, affected_urls)
-        VALUES (
+        INSERT INTO tickets (
+          upload_id, title, description, url, issue_type,
+          category, severity, priority, impact, effort, confidence,
+          owner, source_tool, assignment_reason, needs_review,
+          affected_count, affected_urls, example_urls,
+          recommended_fix, tags,
+          status, review_status, validation_status,
+          first_detected_at
+        ) VALUES (
           ${upload.id},
           ${issue.title},
           ${issue.description ?? null},
           ${issue.url ?? null},
           ${issue.issue_type},
+          ${issue.category ?? null},
           ${issue.severity},
+          ${issue.priority},
+          ${issue.impact},
+          ${issue.effort},
+          ${issue.confidence},
           ${issue.owner},
           ${issue.source_tool ?? null},
           ${issue.assignment_reason ?? null},
           ${issue.needs_review},
           ${issue.affected_count},
-          ${sql.json(issue.affected_urls)}
+          ${sql.json(issue.affected_urls)},
+          ${sql.json(exampleUrls)},
+          ${issue.recommended_fix ?? null},
+          ${sql.json(issue.tags)},
+          'needs_review',
+          'needs_review',
+          'not_validated',
+          NOW()
         )
       `
     }

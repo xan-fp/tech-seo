@@ -40,10 +40,12 @@ export async function GET(request: NextRequest) {
         END,
         created_at DESC
     `
-    // Normalize affected_urls — may be stored as a JSON string in older rows
+    // Normalize JSONB columns that may come back as strings in older rows
     const normalized = tickets.map(t => ({
       ...t,
       affected_urls: parseJsonArray(t.affected_urls),
+      example_urls:  parseJsonArray(t.example_urls),
+      tags:          parseJsonArray(t.tags),
     }))
     return NextResponse.json(normalized)
   } catch (err) {

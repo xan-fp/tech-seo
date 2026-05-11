@@ -60,7 +60,7 @@ export async function initDb(seed = false) {
       issue_type  TEXT        NOT NULL DEFAULT 'Unknown Issue',
       severity    TEXT        NOT NULL DEFAULT 'medium',
       owner       TEXT        NOT NULL DEFAULT 'site_content_lead',
-      status      TEXT        NOT NULL DEFAULT 'draft',
+      status      TEXT        NOT NULL DEFAULT 'needs_review',
       notes       TEXT,
       created_at  TIMESTAMPTZ DEFAULT NOW(),
       updated_at  TIMESTAMPTZ DEFAULT NOW()
@@ -69,11 +69,27 @@ export async function initDb(seed = false) {
 
   // ── New columns (idempotent — safe to run repeatedly) ────────
 
-  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assignment_reason TEXT`
-  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS needs_review      BOOLEAN NOT NULL DEFAULT false`
-  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS source_tool       TEXT`
-  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS affected_count    INTEGER NOT NULL DEFAULT 1`
-  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS affected_urls     JSONB NOT NULL DEFAULT '[]'`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS assignment_reason  TEXT`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS needs_review       BOOLEAN NOT NULL DEFAULT false`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS source_tool        TEXT`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS affected_count     INTEGER NOT NULL DEFAULT 1`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS affected_urls      JSONB NOT NULL DEFAULT '[]'`
+
+  // ── Rich data model columns (wave 2) ──────────────────────────
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS category          TEXT`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS priority          TEXT NOT NULL DEFAULT 'medium'`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS impact            TEXT NOT NULL DEFAULT 'medium'`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS effort            TEXT NOT NULL DEFAULT 'medium'`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS confidence        TEXT NOT NULL DEFAULT 'medium'`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS review_status     TEXT NOT NULL DEFAULT 'needs_review'`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS validation_status TEXT NOT NULL DEFAULT 'not_validated'`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS recommended_fix   TEXT`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS example_urls      JSONB NOT NULL DEFAULT '[]'`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS due_date          TIMESTAMPTZ`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS tags              JSONB NOT NULL DEFAULT '[]'`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS first_detected_at TIMESTAMPTZ DEFAULT NOW()`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS last_detected_at  TIMESTAMPTZ`
+  await sql`ALTER TABLE tickets ADD COLUMN IF NOT EXISTS source_audit_id   UUID REFERENCES audit_uploads(id) ON DELETE SET NULL`
 
   // ── Ticket comments ──────────────────────────────────────────
 
@@ -194,7 +210,7 @@ async function seedData() {
         (${upload.id}, ${s.title}, ${s.description}, ${s.url ?? null},
          ${s.issue_type}, ${s.severity}, ${s.owner},
          ${s.source_tool ?? null}, ${s.assignment_reason}, ${s.needs_review},
-         'draft')
+         'needs_review')
     `
   }
 }

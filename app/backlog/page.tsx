@@ -4,7 +4,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import SeverityBadge from '@/components/severity-badge'
 import OwnerLabel    from '@/components/owner-label'
 import StatusBadge   from '@/components/status-badge'
-import type { Owner, Severity, TeamMember, Ticket, TicketComment, TicketStatus } from '@/lib/types'
+import type { BacklogStatus, Owner, Severity, TeamMember, Ticket, TicketComment } from '@/lib/types'
 
 // ── constants ─────────────────────────────────────────────────────────────────
 
@@ -23,21 +23,29 @@ const SEVERITIES: { value: Severity | ''; label: string }[] = [
   { value: 'low',      label: 'Low' },
 ]
 
-const STATUSES: { value: TicketStatus | ''; label: string }[] = [
-  { value: '',            label: 'All statuses' },
-  { value: 'approved',    label: 'Approved' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'done',        label: 'Done' },
-  { value: 'rejected',    label: 'Rejected' },
-  { value: 'draft',       label: 'Draft' },
+const STATUSES: { value: BacklogStatus | ''; label: string }[] = [
+  { value: '',                 label: 'All statuses' },
+  { value: 'approved',         label: 'Approved' },
+  { value: 'assigned',         label: 'Assigned' },
+  { value: 'in_progress',      label: 'In Progress' },
+  { value: 'fix_ready',        label: 'Fix Ready' },
+  { value: 'needs_validation', label: 'Needs Validation' },
+  { value: 'validated',        label: 'Validated' },
+  { value: 'done',             label: 'Done' },
+  { value: 'ignored',          label: 'Ignored' },
+  { value: 'reopened',         label: 'Reopened' },
 ]
 
-const STATUS_OPTIONS: { value: TicketStatus; label: string }[] = [
-  { value: 'draft',       label: 'Draft' },
-  { value: 'approved',    label: 'Approved' },
-  { value: 'in_progress', label: 'In Progress' },
-  { value: 'done',        label: 'Done' },
-  { value: 'rejected',    label: 'Rejected' },
+const STATUS_OPTIONS: { value: BacklogStatus; label: string }[] = [
+  { value: 'approved',         label: 'Approved' },
+  { value: 'assigned',         label: 'Assigned' },
+  { value: 'in_progress',      label: 'In Progress' },
+  { value: 'fix_ready',        label: 'Fix Ready' },
+  { value: 'needs_validation', label: 'Needs Validation' },
+  { value: 'validated',        label: 'Validated' },
+  { value: 'done',             label: 'Done' },
+  { value: 'ignored',          label: 'Ignored' },
+  { value: 'reopened',         label: 'Reopened' },
 ]
 
 function timeAgo(iso: string) {
@@ -64,10 +72,10 @@ function TicketPanel({
 }: {
   ticket:         Ticket
   teamMembers:    TeamMember[]
-  onStatusChange: (id: string, status: TicketStatus) => void
+  onStatusChange: (id: string, status: BacklogStatus) => void
   onClose:        () => void
 }) {
-  const [status,       setStatus]       = useState<TicketStatus>(ticket.status as TicketStatus)
+  const [status,       setStatus]       = useState<BacklogStatus>(ticket.status as BacklogStatus)
   const [statusBusy,   setStatusBusy]   = useState(false)
   const [statusSaved,  setStatusSaved]  = useState(false)
   const [comments,     setComments]     = useState<TicketComment[]>([])
@@ -83,7 +91,7 @@ function TicketPanel({
 
   // Reset when ticket changes
   useEffect(() => {
-    setStatus(ticket.status as TicketStatus)
+    setStatus(ticket.status as BacklogStatus)
     setStatusSaved(false)
     setCommentText('')
     setMentioned(new Set())
@@ -165,7 +173,7 @@ function TicketPanel({
           <p className="text-sm font-semibold text-gray-900 leading-snug mt-0.5 line-clamp-2">{ticket.title}</p>
           <div className="flex flex-wrap gap-1.5 mt-1.5">
             <SeverityBadge severity={ticket.severity as Severity} />
-            <StatusBadge   status={ticket.status as TicketStatus} />
+            <StatusBadge   status={ticket.status as BacklogStatus} />
             {ticket.affected_count > 1 && (
               <span className="inline-block px-2 py-0.5 rounded bg-blue-50 text-blue-700 text-xs font-medium border border-blue-100">
                 {ticket.affected_count} pages
@@ -185,7 +193,7 @@ function TicketPanel({
             <select
               className="select flex-1 text-sm"
               value={status}
-              onChange={e => setStatus(e.target.value as TicketStatus)}
+              onChange={e => setStatus(e.target.value as BacklogStatus)}
             >
               {STATUS_OPTIONS.map(s => (
                 <option key={s.value} value={s.value}>{s.label}</option>
@@ -335,7 +343,7 @@ export default function BacklogPage() {
   const [selected,    setSelected]    = useState<Ticket | null>(null)
   const [owner,       setOwner]       = useState<Owner | ''>('')
   const [severity,    setSeverity]    = useState<Severity | ''>('')
-  const [status,      setStatus]      = useState<TicketStatus | ''>('')
+  const [status,      setStatus]      = useState<BacklogStatus | ''>('')
   const [needsReview, setNeedsReview] = useState(false)
 
   const load = useCallback(() => {
@@ -344,7 +352,7 @@ export default function BacklogPage() {
     if (owner)    params.set('owner',    owner)
     if (severity) params.set('severity', severity)
     if (status)   params.set('status',   status)
-    if (!status)  params.set('status', 'approved,in_progress,done,rejected')
+    if (!status)  params.set('status', 'approved,assigned,in_progress,fix_ready,needs_validation,validated,done,reopened')
 
     Promise.all([
       fetch(`/api/tickets?${params}`).then(r => r.json()),
@@ -362,7 +370,7 @@ export default function BacklogPage() {
 
   useEffect(() => { load() }, [load])
 
-  function handleStatusChange(id: string, newStatus: TicketStatus) {
+  function handleStatusChange(id: string, newStatus: BacklogStatus) {
     setTickets(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t))
     setSelected(prev => prev?.id === id ? { ...prev, status: newStatus } : prev)
   }
@@ -394,7 +402,7 @@ export default function BacklogPage() {
         </div>
         <div>
           <label className="label">Status</label>
-          <select className="select w-36" value={status} onChange={e => { setStatus(e.target.value as TicketStatus | ''); setSelected(null) }}>
+          <select className="select w-36" value={status} onChange={e => { setStatus(e.target.value as BacklogStatus | ''); setSelected(null) }}>
             {STATUSES.map(s => <option key={s.value} value={s.value}>{s.label}</option>)}
           </select>
         </div>
@@ -495,7 +503,7 @@ export default function BacklogPage() {
                       <OwnerLabel owner={t.owner as Owner} needsReview={t.needs_review} />
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap">
-                      <StatusBadge status={t.status as TicketStatus} />
+                      <StatusBadge status={t.status as BacklogStatus} />
                     </td>
                     <td className="py-3 px-4 whitespace-nowrap" onClick={e => e.stopPropagation()}>
                       {t.affected_count > 0 ? (
