@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { put } from '@vercel/blob'
 import { parseAuditFile, dedupeIssues } from '@/lib/parse-audit'
+import { classifyUnknownIssues } from '@/lib/classify'
 import sql from '@/lib/db'
 
 export const dynamic     = 'force-dynamic'
@@ -47,9 +48,12 @@ export async function POST(request: NextRequest) {
   }
 
   // 2 — Deduplicate: group by issue type → one ticket per category
-  const issues = dedupeIssues(rawIssues)
+  const deduped = dedupeIssues(rawIssues)
 
-  // 3 — Upload file to Vercel Blob + insert tickets
+  // 3 — AI classify any remaining "Unknown Issue" types using Claude
+  const issues = await classifyUnknownIssues(deduped)
+
+  // 4 — Upload file to Vercel Blob + insert tickets
   try {
     const blob = await put(file.name, buffer, { access: 'public' })
 
