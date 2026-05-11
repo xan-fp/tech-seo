@@ -372,7 +372,7 @@ export default function ReviewPage() {
   const load = useCallback(() => {
     setLoading(true)
     Promise.all([
-      fetch('/api/tickets?status=draft').then(r => r.json()) as Promise<Ticket[]>,
+      fetch('/api/tickets?status=needs_review').then(r => r.json()) as Promise<Ticket[]>,
       fetch('/api/team').then(r => r.json()) as Promise<TeamMember[]>,
     ])
       .then(([tickets, team]) => {

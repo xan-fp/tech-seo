@@ -16,7 +16,12 @@ export async function PATCH(request: NextRequest, { params }: Params) {
   const { id } = params
   const body = await request.json()
 
-  const allowed = ['title', 'description', 'url', 'issue_type', 'severity', 'owner', 'status', 'notes', 'needs_review']
+  const allowed = [
+    'title', 'description', 'url', 'issue_type', 'category',
+    'severity', 'priority', 'impact', 'effort', 'confidence',
+    'owner', 'status', 'review_status', 'validation_status',
+    'notes', 'recommended_fix', 'due_date', 'needs_review',
+  ]
   const updates = Object.fromEntries(
     Object.entries(body).filter(([k]) => allowed.includes(k))
   )
@@ -48,7 +53,11 @@ export async function PATCH(request: NextRequest, { params }: Params) {
     return NextResponse.json({ error: 'Ticket not found.' }, { status: 404 })
   }
 
-  ticket.affected_urls = parseJsonArray(ticket.affected_urls)
+  // Normalize JSONB columns
+  const t = ticket as unknown as Record<string, unknown>
+  ticket.affected_urls = parseJsonArray(t.affected_urls)
+  ticket.example_urls  = parseJsonArray(t.example_urls)
+  ticket.tags          = parseJsonArray(t.tags)
 
   // Fire emails on status change
   if (updates.status && updates.status !== before.status) {

@@ -1,7 +1,41 @@
 import Papa from 'papaparse'
 import * as XLSX from 'xlsx'
 import { assignOwner } from './assign-owner'
-import type { ParsedIssue, Severity } from './types'
+import type { ParsedIssue, Severity, SeoCategory } from './types'
+
+// ─── Issue-type → SeoCategory mapper ─────────────────────────────────────
+
+function inferCategory(issueType: string): SeoCategory | null {
+  const t = issueType.toLowerCase()
+  if (t.includes('index') || t.includes('noindex'))                          return 'Indexation'
+  if (t.includes('crawl') || t.includes('robots') || t.includes('disallow')) return 'Crawlability'
+  if (t.includes('robots.txt'))                                               return 'Robots.txt'
+  if (t.includes('sitemap'))                                                  return 'Sitemap'
+  if (t.includes('redirect') || t.includes('3xx') || t.includes('301')
+    || t.includes('302'))                                                     return 'Redirects'
+  if (t.includes('canonical'))                                                return 'Canonicals'
+  if (t.includes('hreflang') || t.includes('alternate') || t.includes('lang')) return 'Hreflang'
+  if (t.includes('meta') || t.includes('title tag') || t.includes('h1')
+    || t.includes('heading'))                                                 return 'Metadata'
+  if (t.includes('schema') || t.includes('structured data')
+    || t.includes('json-ld') || t.includes('rich'))                          return 'Structured Data'
+  if (t.includes('speed') || t.includes('core web vitals')
+    || t.includes('lcp') || t.includes('cls') || t.includes('fid')
+    || t.includes('performance'))                                             return 'Page Speed'
+  if (t.includes('image') || t.includes('alt text') || t.includes('alt tag')) return 'Images'
+  if (t.includes('internal link') || t.includes('anchor'))                   return 'Internal Links'
+  if (t.includes('broken') || t.includes('4xx') || t.includes('404')
+    || t.includes('dead link'))                                               return 'Broken Links'
+  if (t.includes('duplicate') || t.includes('duplicat'))                     return 'Duplicate Content'
+  if (t.includes('thin'))                                                     return 'Thin Content'
+  if (t.includes('content quality') || t.includes('readability'))            return 'Content Quality'
+  if (t.includes('url') || t.includes('slug') || t.includes('structure'))    return 'URL Structure'
+  if (t.includes('backlink') || t.includes('incoming link')
+    || t.includes('external link'))                                           return 'Backlinks'
+  if (t.includes('search console') || t.includes('gsc'))                     return 'Search Console'
+  if (t.includes('5xx') || t.includes('server error'))                       return 'Crawlability'
+  return null
+}
 
 // ─── Column name matchers ──────────────────────────────────────────────────
 
@@ -57,13 +91,20 @@ function parseScreamingFrogCrawl(rows: Record<string, string>[]): ParsedIssue[] 
         title:             `${code} Error: ${url ?? 'Unknown URL'}`,
         description:       `HTTP ${code} response detected. This URL needs to be fixed or redirected.`,
         issue_type:        issueType,
+        category:          inferCategory(issueType),
         severity:          code >= 500 ? 'critical' : 'high',
+        priority:          code >= 500 ? 'critical' : 'high',
+        impact:            'high',
+        effort:            'medium',
+        confidence:        'high',
         owner,
         source_tool:       'Screaming Frog',
         assignment_reason: reason,
         needs_review:      needsReview,
         affected_count:    1,
         affected_urls:     url ? [url] : [],
+        recommended_fix:   'Set up a 301 redirect to the correct URL, or restore the page if it should exist.',
+        tags:              [],
       })
     }
 
@@ -75,13 +116,20 @@ function parseScreamingFrogCrawl(rows: Record<string, string>[]): ParsedIssue[] 
         title:             `Missing Title Tag: ${url ?? 'Unknown URL'}`,
         description:       'The page has no title tag. Add a unique, descriptive title.',
         issue_type:        issueType,
+        category:          inferCategory(issueType),
         severity:          'high',
+        priority:          'high',
+        impact:            'high',
+        effort:            'low',
+        confidence:        'high',
         owner,
         source_tool:       'Screaming Frog',
         assignment_reason: reason,
         needs_review:      needsReview,
         affected_count:    1,
         affected_urls:     url ? [url] : [],
+        recommended_fix:   'Add a unique, descriptive <title> tag (50–60 characters) to the page.',
+        tags:              [],
       })
     }
 
@@ -93,13 +141,20 @@ function parseScreamingFrogCrawl(rows: Record<string, string>[]): ParsedIssue[] 
         title:             `Missing Meta Description: ${url ?? 'Unknown URL'}`,
         description:       'The page has no meta description. Add one to improve CTR.',
         issue_type:        issueType,
+        category:          inferCategory(issueType),
         severity:          'medium',
+        priority:          'medium',
+        impact:            'medium',
+        effort:            'low',
+        confidence:        'high',
         owner,
         source_tool:       'Screaming Frog',
         assignment_reason: reason,
         needs_review:      needsReview,
         affected_count:    1,
         affected_urls:     url ? [url] : [],
+        recommended_fix:   'Write a compelling meta description (120–155 characters) summarising the page content.',
+        tags:              [],
       })
     }
 
@@ -111,13 +166,20 @@ function parseScreamingFrogCrawl(rows: Record<string, string>[]): ParsedIssue[] 
         title:             `Missing H1: ${url ?? 'Unknown URL'}`,
         description:       'The page is missing an H1 heading.',
         issue_type:        issueType,
+        category:          inferCategory(issueType),
         severity:          'medium',
+        priority:          'medium',
+        impact:            'medium',
+        effort:            'low',
+        confidence:        'high',
         owner,
         source_tool:       'Screaming Frog',
         assignment_reason: reason,
         needs_review:      needsReview,
         affected_count:    1,
         affected_urls:     url ? [url] : [],
+        recommended_fix:   'Add a single H1 tag that clearly describes the primary topic of the page.',
+        tags:              [],
       })
     }
 
@@ -129,13 +191,20 @@ function parseScreamingFrogCrawl(rows: Record<string, string>[]): ParsedIssue[] 
         title:             `Thin Content: ${url ?? 'Unknown URL'}`,
         description:       `Page has only ${words} words. Consider expanding or consolidating.`,
         issue_type:        issueType,
+        category:          inferCategory(issueType),
         severity:          'low',
+        priority:          'low',
+        impact:            'medium',
+        effort:            'high',
+        confidence:        'medium',
         owner,
         source_tool:       'Screaming Frog',
         assignment_reason: reason,
         needs_review:      needsReview,
         affected_count:    1,
         affected_urls:     url ? [url] : [],
+        recommended_fix:   'Expand the content to at least 300 words, or consolidate with a related page via a 301 redirect.',
+        tags:              [],
       })
     }
   }
@@ -181,13 +250,20 @@ function parseGenericIssueList(rows: Record<string, string>[]): ParsedIssue[] {
         title,
         description:       desc,
         issue_type:        issueType,
+        category:          inferCategory(issueType),
         severity,
+        priority:          severity,  // default priority = severity
+        impact:            'medium' as const,
+        effort:            'medium' as const,
+        confidence:        needsReview ? 'low' as const : 'medium' as const,
         owner,
         source_tool:       null,
         assignment_reason: reason,
         needs_review:      needsReview,
         affected_count:    1,
         affected_urls:     url ? [url] : [],
+        recommended_fix:   null,
+        tags:              [],
       }
     })
 }
