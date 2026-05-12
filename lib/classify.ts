@@ -254,3 +254,82 @@ Return a JSON array with exactly ${targets.length} objects:
     return issues
   }
 }
+
+// ── Column-role detection for unknown CSV formats ─────────────────────────────
+
+export interface AuditColumnMapping {
+  urlCol:      string | null
+  issueCol:    string | null
+  severityCol: string | null
+  descCol:     string | null
+  sourceTool:  string | null
+}
+
+/**
+ * Ask Claude to identify which CSV column serves each role (URL, issue type,
+ * severity, description). Returns null when ANTHROPIC_API_KEY is not set or
+ * the request fails.
+ */
+export async function detectAuditColumns(
+  headers: string[],
+  sampleRows: Record<string, unknown>[],
+): Promise<AuditColumnMapping | null> {
+  const client = getClient()
+  if (!client) return null
+
+  const sample = sampleRows.slice(0, 5).map((row, i) => {
+    const cells = headers
+      .map(h => `  ${JSON.stringify(h)}: ${JSON.stringify(String(row[h] ?? '').slice(0, 120))}`)
+      .join('\n')
+    return `Row ${i + 1}:\n${cells}`
+  }).join('\n\n')
+
+  const userMsg = `I have a CSV export from an SEO audit tool with these column headers:
+${headers.map(h => JSON.stringify(h)).join(', ')}
+
+Sample data:
+${sample}
+
+Identify the best column for each role. Use the EXACT header name (case-sensitive) or null.
+Return ONLY valid JSON — no markdown, no explanation:
+{
+  "urlCol":      "exact header name or null",
+  "issueCol":    "exact header name or null",
+  "severityCol": "exact header name or null",
+  "descCol":     "exact header name or null",
+  "sourceTool":  "Ahrefs | Semrush | Moz | Google Search Console | Sitebulb | Screaming Frog | Other | null"
+}
+
+Rules:
+- urlCol: the column whose values are page URLs or URL paths
+- issueCol: the column that names the SEO problem or issue type (NOT the URL!)
+- severityCol: priority / impact / severity level (e.g. High / Medium / Low)
+- descCol: detailed description, recommendation, or how-to-fix text`
+
+  try {
+    const response = await client.messages.create({
+      model:      'claude-3-5-haiku-20241022',
+      max_tokens: 300,
+      messages:   [{ role: 'user', content: userMsg }],
+    })
+    const text  = response.content[0].type === 'text' ? response.content[0].text.trim() : ''
+    const match = text.match(/\{[\s\S]*\}/)
+    if (!match) {
+      console.error('[classify] detectAuditColumns: no JSON in response:', text.slice(0, 200))
+      return null
+    }
+    const result = JSON.parse(match[0]) as AuditColumnMapping
+    // Validate that the returned column names actually exist in headers
+    const valid = (col: string | null) => col === null || headers.includes(col) ? col : null
+    return {
+      urlCol:      valid(result.urlCol),
+      issueCol:    valid(result.issueCol),
+      severityCol: valid(result.severityCol),
+      descCol:     valid(result.descCol),
+      sourceTool:  result.sourceTool ?? null,
+    }
+  } catch (err) {
+    console.error('[classify] detectAuditColumns failed:', err)
+    return null
+  }
+}

@@ -32,9 +32,10 @@ export async function POST(request: NextRequest) {
   const buffer = Buffer.from(await file.arrayBuffer())
 
   // 1 — Parse every row into individual issues
+  // parseAuditFile is async — it may call Claude to detect column roles for unknown formats
   let rawIssues
   try {
-    rawIssues = parseAuditFile(buffer, ext)
+    rawIssues = await parseAuditFile(buffer, ext)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Parse error'
     return NextResponse.json({ error: `Could not parse file: ${msg}` }, { status: 422 })
